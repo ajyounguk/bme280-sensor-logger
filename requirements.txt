@@ -1,0 +1,11 @@
+certifi==2024.8.30
+charset-normalizer==3.4.0
+dnspython==2.7.0
+idna==3.10
+paho-mqtt==2.1.0
+pymongo==4.10.1
+pytz==2024.2
+requests==2.32.3
+RPi.bme280==0.2.4
+smbus2==0.4.3
+urllib3==2.2.3
