@@ -1,0 +1,33 @@
+{
+  "app": {
+      "readingIntervalSeconds": 600,
+      "deviceName": "lounge_rpi"
+  },
+  "sensor": {
+      "i2c_port": 1,
+      "bme280_address": "0x76"
+  },
+  "metoffice": {
+      "enabled": true,
+      "locationID": "3414",  
+      "APIKey": "YOUR_METOFFICE_API_KEY"           
+  },
+  "mongo": {
+      "enabled" : true,
+      "uri": "mongodb+srv://MONGO_USERNAME:MONGO_PASSWORD@cluster0.1haxi.mongodb.net/DATABASE?retryWrites=true&w=majority",
+      "dbName": "YOUR_DB_NAME",
+      "collection": "house_temperature_readings",
+      "sensorSource": "lounge",
+      "metofficeSource": "shropshire_outside"
+  },
+  "mqtt": {
+      "enabled": true,
+      "broker": "192.168.1.250",
+      "port": 1883,
+      "mqttUsername": "YOUR_MQTT_USERNAME",
+      "mqttPassword": "YOUR_MQTT_PASSWORD",
+      "sensorTopic": "homeassistant/bme280_lounge",
+      "metofficeTopic": "homeassistant/metoffice"
+  }
+}
+  
