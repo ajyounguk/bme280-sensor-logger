@@ -54,7 +54,7 @@ sudo apt-get install git
 
 - Clone the repository
 ```bash
-git clone https://github.com/ajyounguk/temperature-sensor
+git clone https://github.com/ajyounguk/bme280-sensor-logger
 ```
 
 - Update your OS environment
