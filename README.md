@@ -40,6 +40,7 @@ Configuration parameters in .json file for reading frequency, sensor, MetOffice,
 /src/mongo.py = Mongo database integration code
 /src/mqtt_handler = MQTT handler code (can be used for integration with Home Assistant)
 
+***
 
 ## Installation
 - Update OS packages
@@ -86,6 +87,8 @@ source venv/bin/activate
 ```bash
 pip install -r requirements.txt
 ```
+
+***
 
 ## Configuration
 
@@ -170,6 +173,8 @@ Example configuration.json:
 }
 ```
 
+
+***
 ## Run the Application:
 
 ```bash
@@ -190,7 +195,7 @@ python main.py
 [INFO 2024-10-19 16:30:20] - MetOffice - Temperature: 15.7 °C, Humidity: 58.3 %, Pressure: 1011.0 hPa, Wind: 6.0 m/s
 ```
 
-
+***
 # Additional Information
 
 #### MongoDB
@@ -214,16 +219,14 @@ MongoDB can be hosted anywhere. The app works well with a free-tier Mongo Atlas 
 
 You can visualize data from different devices using MongoDB Charts. See [MongoDB Charts](https://www.mongodb.com/products/charts).
 
-
-
-
+---
 #### MetOffice
 
 - MetOffice readings typically only updated once per hour.
 - In oder to avoid redundant MetOffice readings, the code checks if a MetOffice document already exists  in the Mongo database, if so it will skip creating another.
 - THis also ensures that if you are running multiple sensors, only a single MetOffice record is created in each hourly interval.
 
-
+---
 #### BME280 Sensor
 
 Ensure that I2C is enabled on the Pi via `raspi-config` (under `Interface Options` > `I2C`):
@@ -248,6 +251,7 @@ i2cdetect -y 0  # for older 256MB Raspberry Pi
 ```
 - In case of errors, double-check the wiring and bus settings. [There is a guide here](https://www.hackster.io/Shilleh/beginner-tutorial-how-to-connect-raspberry-pi-and-bme280-4fdbd5)
 
+---
 #### pm2
 
 pm2 is a process manager for keeping applications running in the background (and autostart on boot).
@@ -308,7 +312,7 @@ pm2 stop 0 # or your process number from status
 pm2 restart 0  # or your process number from status
 ```
 
-
+---
 #### Home Assistant Integration
 
 For those using Home Assistant, you can use the MQTT integration to display temperature, pressure, and humidity data from your sensors. 
