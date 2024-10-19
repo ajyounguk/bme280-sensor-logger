@@ -248,6 +248,66 @@ i2cdetect -y 0  # for older 256MB Raspberry Pi
 ```
 - In case of errors, double-check the wiring and bus settings. [There is a guide here](https://www.hackster.io/Shilleh/beginner-tutorial-how-to-connect-raspberry-pi-and-bme280-4fdbd5)
 
+#### pm2
+
+pm2 is a process manager for keeping applications running in the background (and autostart on boot).
+although it is mainly a NodeJS process manager, it works great with Python applications too. If you want to install it try:
+
+- nodejs installation
+```bash
+sudo apt update
+```
+```bash
+sudo apt install -y nodejs npm
+```
+
+- verify nodejs and npm installation
+```bash
+node -v
+```
+```bash
+npm -v 
+```
+
+- install pm2 using npm
+```bash
+sudo npm install -g pm2
+```
+
+- verify pm2 nstallation
+```bash
+pm2 -v
+```
+
+- set pm2 to start on boot
+```bash
+pm2 startup
+```
+
+- it will generate a command specific to your system, which might look like this
+> sudo env PATH=$PATH:/usr/bin pm2 startup systemd -u pi --hp /home/pi
+- run the generated command to enable pm2 to start on boot
+
+- start the the application (main.py) with pm2
+```bash
+pm2 start main.py
+```
+
+- save it into the pm2 process list
+```bash
+pm2 save
+```
+
+- other pm2 commands (see `pm2 --help`) :
+
+```bash
+pm2 status
+pm2 logs
+pm2 start 0 # or your process number from status
+pm2 stop 0 # or your process number from status
+pm2 restart 0  # or your process number from status
+```
+
 
 #### Home Assistant Integration
 
