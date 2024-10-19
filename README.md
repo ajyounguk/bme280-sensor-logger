@@ -57,12 +57,14 @@ sudo apt-get install git
 git clone https://github.com/ajyounguk/bme280-sensor-logger
 ```
 
-- Update your OS environment
-```bash
-sudo apt update
-```
+- Install Python
 ```bash
 sudo apt install python3-pip
+```
+
+- move to bme280-sensor-logger directory
+```bash
+cd bme280-sensor-logger
 ```
 
 
