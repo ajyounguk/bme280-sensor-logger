@@ -42,6 +42,15 @@ Configuration parameters in .json file for reading frequency, sensor, MetOffice,
 
 
 ## Installation
+- Update OS packages
+```bash
+sudo apt-get update
+```
+
+- Install git
+```bash
+sudo apt-get install git
+```
 
 - Clone the repository
 ```bash
