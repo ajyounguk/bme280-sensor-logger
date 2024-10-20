@@ -21,7 +21,7 @@ Configuration parameters in .json file for reading frequency, sensor, MetOffice,
 
 ## Todo 
 - [ ] Post MQTT data in the format for Home Assistant autodiscovery 
-- [ ] Change MetOffice API from [DataPoint](https://www.metoffice.gov.uk/services/data/datapoint) to [DataHub](https://www.metoffice.gov.uk/services/data/met-office-weather-datahub_) as DataPoint is being retired in 2025
+- [ ] Change MetOffice API from [DataPoint](https://www.metoffice.gov.uk/services/data/datapoint) to [DataHub](https://www.metoffice.gov.uk/services/data/met-office-weather-datahub) as DataPoint is being retired in 2025
 
 ## High level code logic:
 1. load configuration parameters from /config/config.json
