@@ -96,9 +96,11 @@ def main_loop(mqtt_handler):
 if __name__ == "__main__":
     config = load_config()
 
-    # Access configuration values
+    # App configuration values
     READING_INTERVAL = config['app']['readingIntervalSeconds']
     DEVICE_NAME = config['app']['deviceName']
+
+    # Sensor configuration valus
     I2C_PORT = config['sensor']['i2c_port']
     BME280_ADDRESS = int(config['sensor']['bme280_address'], 16)
 
