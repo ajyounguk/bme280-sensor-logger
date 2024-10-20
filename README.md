@@ -18,6 +18,11 @@ Configuration parameters in .json file for reading frequency, sensor, MetOffice,
 <sub>example Chart generated from BME280 data posted to Mongo Atlas and charted with Mongo Charts (all in free tier)<sub>
 ![MongoChart](/screenshots/mongoChart.png?raw=true)
 
+
+## Todo
+> [@10/2024] Post MQTT data in the format for Home Assistant autodiscovery 
+> [@10/2024] Change MetOffice API from [DataPoint](https://www.metoffice.gov.uk/services/data/datapoint) to [DataHub](https://www.metoffice.gov.uk/services/data/met-office-weather-datahub_) as DataPoint is being retired in 2025
+
 ## High level code logic:
 1. load configuration parameters from /config/config.json
 2. main loop
@@ -330,7 +335,6 @@ I recommend starting with the MQTT mosquito add-on for Home Assistant. Then conf
 
 Finally you will need to configure your Home Assistant `configuration.yaml` file to listen to the relevant MQTT topics and define the devices/entities for the sensor readings in line with the example below:
 
-> [todo 10/2024] Post data in the format for Home Assistant autodiscovery 
 
 ```yaml
 mqtt:
