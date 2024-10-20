@@ -3,7 +3,7 @@ import smbus2
 import bme280
 from datetime import datetime
 
-def read_bme280_data(address, port, source):
+def read_bme280_data(port, address, source):
 
     # Create I2C bus
     bus = None
