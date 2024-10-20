@@ -22,7 +22,7 @@ def get_met_office_data(location_id, api_key, source):
         }
 
         ## DEBUG
-        print(f"[DEBUG] - {data['SiteRep']['DV']['Location']['Period'][-1]['Rep'][-1]}")
+        ## print(f"[DEBUG] - {data['SiteRep']['DV']['Location']['Period'][-1]['Rep'][-1]}")
 
         return met_office_data_doc
  
