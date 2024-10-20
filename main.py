@@ -31,7 +31,7 @@ def load_config():
         return json.load(config_file)
 
 # Main logic to read from sensors and process data
-def main_loop(mqtt_handler):
+def main_loop():
     while True:
 
         # added to main loop due to diconnects and timeouts
@@ -164,7 +164,7 @@ if __name__ == "__main__":
         print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - MQTT Met Office Topic: {MQTT_TOPIC_METOFFICE}")
 
     try:
-        main_loop(mqtt_handler)
+        main_loop()
     except KeyboardInterrupt:
         print("[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Program stopped by user.")
     except Exception as e:
