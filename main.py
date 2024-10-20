@@ -35,6 +35,12 @@ def load_config():
 def main_loop(mqtt_handler):
     while True:
 
+        # added to main loop due to diconnects and timeouts
+        mqtt_handler = None
+        if MQTT_ENABLED:
+            mqtt_handler = MQTTHandler(MQTT_BROKER, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD)
+            mqtt_handler.connect()
+
         # read sensor data
         bme280_data = read_bme280_data(bus, BME280_ADDRESS, SENSOR_SOURCE)
 
