@@ -1,4 +1,4 @@
-# BME280 Temperature Sensor (Python)
+# BME280 Temperature Sensor Data Logger (Python)
 
 This Python-based application monitors environmental data using a BME280 sensor and the Met Office API. Temperature, pressure and humdity readings can then be persisted in a Mongo database, or sent to a MQTT for integration with Home Assistant .
 
