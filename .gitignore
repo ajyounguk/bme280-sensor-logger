@@ -2,6 +2,8 @@
 /config/*
 !/config/config-example.json
 
+/src/metoffice-refact.py
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

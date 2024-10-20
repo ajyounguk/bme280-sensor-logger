@@ -12,6 +12,7 @@ def get_met_office_data(location_id, api_key, source):
 
         # Extract the last period's weather data
         last_period = data['SiteRep']['DV']['Location']['Period'][-1]['Rep'][-1]
+        
         met_office_data_doc = {
             "source": source,
             "temperature": round(float(last_period['T']), 2),
@@ -19,6 +20,9 @@ def get_met_office_data(location_id, api_key, source):
             "pressure": round(float(last_period['P']), 2),
             "wind": round(float(last_period['S']), 2)
         }
+
+        ## DEBUG
+        print(f"[DEBUG] - {data['SiteRep']['DV']['Location']['Period'][-1]['Rep'][-1]}")
 
         return met_office_data_doc
  
