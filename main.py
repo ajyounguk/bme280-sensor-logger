@@ -170,7 +170,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"[ERROR {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - An error occurred: {e}")
     finally:
-        bus.close()  # Ensure the I2C bus is closed on exit
-        if mqtt_handler:
-            mqtt_handler.disconnect()  # Disconnect MQTT client if it was created
-        print("[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - I2C bus closed.")
+        print("[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Stopping....")

@@ -21,6 +21,8 @@ def read_bme280_data(address, port, source):
         "wind" : None
     }
 
+    bus.close()  
+
     return bme280_data
 
 
