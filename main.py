@@ -1,8 +1,14 @@
 # bme280-temperature-sensor (python version)
+#
 # This Python-based application monitors environmental data using a BME280 sensor 
 # and the Met Office API. 
 # Temperature, pressure and humdity readings can be persisted in a Mongo database,
 # or sent to a MQTT for integration with Home Assistant .
+#
+# Andrew Young.
+# v1.0 - 20/10/2024 - baseline working code set
+#
+
 
 # Code logic at a high level:
 # 1. load configuration parameters from /config/config.json
