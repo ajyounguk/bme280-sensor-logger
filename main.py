@@ -17,7 +17,6 @@
 
 
 # imports
-import smbus2
 import json
 import time
 from datetime import datetime
@@ -42,7 +41,7 @@ def main_loop(mqtt_handler):
             mqtt_handler.connect()
 
         # read sensor data
-        bme280_data = read_bme280_data(bus, BME280_ADDRESS, SENSOR_SOURCE)
+        bme280_data = read_bme280_data(I2C_PORT, BME280_ADDRESS, SENSOR_SOURCE)
 
         # Print BME280 data
         print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - BME280 - Temperature: {bme280_data['temperature']} °C, "
@@ -86,6 +85,10 @@ def main_loop(mqtt_handler):
             else:
                 print("[ERROR {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Failed to fetch Met Office data.")
 
+        if MQTT_ENABLED:
+            if mqtt_handler:
+                mqtt_handler.disconnect()
+
         # Sleep for the specified interval before the next reading
         time.sleep(READING_INTERVAL)
 
@@ -121,14 +124,7 @@ if __name__ == "__main__":
     MQTT_TOPIC_BME280 = config['mqtt']['sensorTopic']
     MQTT_TOPIC_METOFFICE = config['mqtt']['metofficeTopic']
 
-    # Create I2C bus
-    bus = smbus2.SMBus(I2C_PORT)
-
-    # Setup MQTT client if enabled
-    mqtt_handler = None
-    if MQTT_ENABLED:
-        mqtt_handler = MQTTHandler(MQTT_BROKER, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD)
-        mqtt_handler.connect()
+    
 
     print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - bme280-temperature-logger starting...")
     
