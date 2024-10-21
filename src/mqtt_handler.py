@@ -27,4 +27,4 @@ class MQTTHandler:
     def disconnect(self):
         if self.client:
             self.client.disconnect()
-            print("[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - MQTT client disconnected.")
+

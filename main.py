@@ -1,8 +1,14 @@
 # bme280-temperature-sensor (python version)
+#
 # This Python-based application monitors environmental data using a BME280 sensor 
 # and the Met Office API. 
 # Temperature, pressure and humdity readings can be persisted in a Mongo database,
 # or sent to a MQTT for integration with Home Assistant .
+#
+# Andrew Young.
+# v1.0 - 20/10/2024 - baseline working code set
+#
+
 
 # Code logic at a high level:
 # 1. load configuration parameters from /config/config.json
@@ -17,7 +23,6 @@
 
 
 # imports
-import smbus2
 import json
 import time
 from datetime import datetime
@@ -32,7 +37,7 @@ def load_config():
         return json.load(config_file)
 
 # Main logic to read from sensors and process data
-def main_loop(mqtt_handler):
+def main_loop():
     while True:
 
         # added to main loop due to diconnects and timeouts
@@ -42,7 +47,7 @@ def main_loop(mqtt_handler):
             mqtt_handler.connect()
 
         # read sensor data
-        bme280_data = read_bme280_data(bus, BME280_ADDRESS, SENSOR_SOURCE)
+        bme280_data = read_bme280_data(I2C_PORT, BME280_ADDRESS, SENSOR_SOURCE)
 
         # Print BME280 data
         print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - BME280 - Temperature: {bme280_data['temperature']} °C, "
@@ -86,6 +91,10 @@ def main_loop(mqtt_handler):
             else:
                 print("[ERROR {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Failed to fetch Met Office data.")
 
+        if MQTT_ENABLED:
+            if mqtt_handler:
+                mqtt_handler.disconnect()
+
         # Sleep for the specified interval before the next reading
         time.sleep(READING_INTERVAL)
 
@@ -93,9 +102,11 @@ def main_loop(mqtt_handler):
 if __name__ == "__main__":
     config = load_config()
 
-    # Access configuration values
+    # App configuration values
     READING_INTERVAL = config['app']['readingIntervalSeconds']
     DEVICE_NAME = config['app']['deviceName']
+
+    # Sensor configuration valus
     I2C_PORT = config['sensor']['i2c_port']
     BME280_ADDRESS = int(config['sensor']['bme280_address'], 16)
 
@@ -121,14 +132,7 @@ if __name__ == "__main__":
     MQTT_TOPIC_BME280 = config['mqtt']['sensorTopic']
     MQTT_TOPIC_METOFFICE = config['mqtt']['metofficeTopic']
 
-    # Create I2C bus
-    bus = smbus2.SMBus(I2C_PORT)
-
-    # Setup MQTT client if enabled
-    mqtt_handler = None
-    if MQTT_ENABLED:
-        mqtt_handler = MQTTHandler(MQTT_BROKER, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD)
-        mqtt_handler.connect()
+    
 
     print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - bme280-temperature-logger starting...")
     
@@ -166,13 +170,10 @@ if __name__ == "__main__":
         print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - MQTT Met Office Topic: {MQTT_TOPIC_METOFFICE}")
 
     try:
-        main_loop(mqtt_handler)
+        main_loop()
     except KeyboardInterrupt:
         print("[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Program stopped by user.")
     except Exception as e:
         print(f"[ERROR {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - An error occurred: {e}")
     finally:
-        bus.close()  # Ensure the I2C bus is closed on exit
-        if mqtt_handler:
-            mqtt_handler.disconnect()  # Disconnect MQTT client if it was created
-        print("[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - I2C bus closed.")
+        print("[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Stopping....")
