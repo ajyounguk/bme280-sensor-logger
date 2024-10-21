@@ -214,10 +214,18 @@ MongoDB can be hosted anywhere. The app works well with a free-tier Mongo Atlas 
   "wind": 5.6,  // Only for Met Office data documents, Null for BME280 readings
   "timestamp": "2024-10-19T15:11:21.031+00:00",
 }
-```
-
 
 You can visualize data from different devices using MongoDB Charts. See [MongoDB Charts](https://www.mongodb.com/products/charts).
+---
+```
+#### MQTT 
+
+For debugging purposes in Home Assitant you can use the inbuilt MQTT listener to monitor for messages from the clients by setting it to the relevant MQTT topic name:
+
+> In Home Assistant go to Settings | Devices and Services | MQTT | Configure
+
+![MQTT](/screenshots/MQTT.png?raw=true)
+
 
 ---
 #### MetOffice
