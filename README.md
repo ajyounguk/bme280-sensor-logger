@@ -27,12 +27,13 @@ Configuration parameters in .json file for reading frequency, sensor, MetOffice,
 1. load configuration parameters from /config/config.json
 2. main loop
 3. get sensor readings
-4. post sensor data to MQTT (if enabled in config)
-5. post sensor data to Mongo (if enabled in config)
-6. get MetOffice readings (if enabled in config)
-7. post MetOffice data to MQTT (if enabled in config)
-8. post MetOffice data to Mongo (if enabled in config)
+4. post sensor data to MQTT 
+5. post sensor data to Mongo 
+6. get MetOffice readings 
+7. post MetOffice data to MQTT 
+8. post MetOffice data to Mongo 
 9. sleep for configurable amount of seconds & loop to 2
+>Mongo, MQTT and MetOffice integrations can be enabled/disabled in config
 
 ## Application structure
 
