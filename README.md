@@ -18,16 +18,22 @@ Configuration parameters in .json file for reading frequency, sensor, MetOffice,
 <sub>example Chart generated from BME280 data posted to Mongo Atlas and charted with Mongo Charts (all in free tier)<sub>
 ![MongoChart](/screenshots/mongoChart.png?raw=true)
 
-## High level code logic
+
+## Todo 
+- [ ] Post MQTT data in the format for Home Assistant autodiscovery 
+- [ ] Change MetOffice API from [DataPoint](https://www.metoffice.gov.uk/services/data/datapoint) to [DataHub](https://www.metoffice.gov.uk/services/data/met-office-weather-datahub) as DataPoint is being retired in 2025
+
+## High level code logic:
 1. load configuration parameters from /config/config.json
 2. main loop
 3. get sensor readings
-4. post sensor data to MQTT (if enabled in config)
-5. post sensor data to Mongo (if enabled in config)
-6. get MetOffice readings (if enabled in config)
-7. post MetOffice data to MQTT (if enabled in config)
-8. post MetOffice data to Mongo (if enabled in config)
+4. post sensor data to MQTT 
+5. post sensor data to Mongo 
+6. get MetOffice readings 
+7. post MetOffice data to MQTT 
+8. post MetOffice data to Mongo 
 9. sleep for configurable amount of seconds & loop to 2
+>Mongo, MQTT and MetOffice integrations can be enabled/disabled in config
 
 ## Application structure
 
@@ -43,6 +49,11 @@ Configuration parameters in .json file for reading frequency, sensor, MetOffice,
 ***
 
 ## Installation
+
+Ensure that I2C interface is enabled on the Raspberry Pi. Check `raspi-config` (under `Interface Options` > `I2C` = enabled):
+```bash
+sudo raspi-config
+```
 - Update OS packages
 ```bash
 sudo apt-get update
@@ -237,11 +248,7 @@ For debugging purposes in Home Assitant you can use the inbuilt MQTT listener to
 ---
 #### BME280 Sensor
 
-Ensure that I2C is enabled on the Pi via `raspi-config` (under `Interface Options` > `I2C`):
 
-```bash
-sudo raspi-config
-```
 
 - The sensor typically operates on an I2C bus. To ensure proper communication, verify the bus number and address configuration. You can use `i2cdetect` to verify if your sensor is detected correctly.
 
@@ -300,6 +307,13 @@ pm2 startup
 > sudo env PATH=$PATH:/usr/bin pm2 startup systemd -u pi --hp /home/pi
 - run the generated command to enable pm2 to start on boot
 
+
+- change to application directory 
+
+e.g.
+```bash
+cd bme280-sensor-logger
+```
 - start the the application (main.py) with pm2
 ```bash
 pm2 start main.py
@@ -313,8 +327,8 @@ pm2 save
 - other pm2 commands (see `pm2 --help`) :
 
 ```bash
-pm2 status
-pm2 logs
+pm2 status # will display process number for the application if runnign
+pm2 logs # view logs
 pm2 start 0 # or your process number from status
 pm2 stop 0 # or your process number from status
 pm2 restart 0  # or your process number from status
@@ -330,7 +344,6 @@ I recommend starting with the MQTT mosquito add-on for Home Assistant. Then conf
 
 Finally you will need to configure your Home Assistant `configuration.yaml` file to listen to the relevant MQTT topics and define the devices/entities for the sensor readings in line with the example below:
 
-> [todo 10/2024] Post data in the format for Home Assistant autodiscovery 
 
 ```yaml
 mqtt:
