@@ -40,8 +40,11 @@ Configuration parameters in .json file for reading frequency, sensor, MetOffice,
 `/main.py` main application 
 
 `/src/sensor.py` BME280 integration code
+
 `/src/metoffice.py` MetOffice API integration code
+
 `/src/mongo.py` Mongo database integration code
+
 `/src/mqtt_handler` MQTT handler code (can be used for integration with Home Assistant)
 
 ***
