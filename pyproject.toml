@@ -1,0 +1,25 @@
+# Tool configuration only: this is an app run from a clone, not an installable package.
+
+[project]
+name = "bme280-sensor-logger"
+version = "2.0.0"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+markers = [
+  "hardware: needs a Raspberry Pi with I2C enabled and a BME280 attached (skipped elsewhere)",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "BLE"]
+ignore = ["S311"]  # random is fine for the fake sensor
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]

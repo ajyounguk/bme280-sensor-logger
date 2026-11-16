@@ -1,351 +1,152 @@
-# BME280 Temperature Sensor Data Logger (Python)
+# BME280 Sensor Logger
 
-This Python-based application monitors environmental data using a BME280 sensor and the Met Office API. Temperature, pressure and humdity readings can then be persisted in a Mongo database, or sent to a MQTT for integration with Home Assistant .
+Indoor temperature, pressure and humidity from a BME280 on a Raspberry Pi, alongside outdoor readings from the
+Met Office. Published to Home Assistant over MQTT and/or logged to MongoDB.
 
-## Features
+![Home Assistant dashboard](docs/screenshots/HA.png?raw=true)
 
-Data collection:
-- BM280 Sensor - Captures temperature, humidity, and pressure data from the BME280 sensor. The application captures data from the BME280 sensor at regular intervals defined in the config.
-- Met Office API: Fetches external / outdoor weather data to enhance your sensor's readings.
+## What it does
 
-Data persistency:
-- MQTT: Publishes data to an MQTT broker for real-time monitoring (e.g., Home Assistant).
-- MongoDB: Logs sensor and Met Office data to MongoDB for historical records.
+- **Reads a BME280** over I2C at a set interval (default every 10 minutes).
+- **Fetches outdoor observations** from the nearest Met Office weather station via the
+  [Weather DataHub](https://datahub.metoffice.gov.uk/) Land Observations API (free plan). It polls at most once an
+  hour by default and stays well inside the 360 calls/day limit.
+- **Publishes to MQTT** for Home Assistant, and/or **stores to MongoDB** for history and charts (MongoDB Atlas and
+  Charts both work on the free tier).
+- **Runs without hardware:** a fake sensor lets you try it, or develop on it, on Windows or macOS.
+- Every output can be switched on or off in the config. The config is validated at start-up, and secrets are never
+  logged.
 
-Configuration File:
-Configuration parameters in .json file for reading frequency, sensor, MetOffice, Mongo and MQQT parameters. 
+<sub>Example chart: BME280 readings in MongoDB Atlas, charted with MongoDB Charts.</sub>
+![MongoDB chart](docs/screenshots/mongoChart.png?raw=true)
 
-<sub>example Chart generated from BME280 data posted to Mongo Atlas and charted with Mongo Charts (all in free tier)<sub>
-![MongoChart](/screenshots/mongoChart.png?raw=true)
+## Quick try (any OS, no sensor)
 
+Needs Python 3.11 or later.
 
-## Todo 
-- [ ] Post MQTT data in the format for Home Assistant autodiscovery 
-- [ ] Change MetOffice API from [DataPoint](https://www.metoffice.gov.uk/services/data/datapoint) to [DataHub](https://www.metoffice.gov.uk/services/data/met-office-weather-datahub) as DataPoint is being retired in 2025
-
-## High level code logic:
-1. load configuration parameters from /config/config.json
-2. main loop
-3. get sensor readings
-4. post sensor data to MQTT 
-5. post sensor data to Mongo 
-6. get MetOffice readings 
-7. post MetOffice data to MQTT 
-8. post MetOffice data to Mongo 
-9. sleep for configurable amount of seconds & loop to 2
->Mongo, MQTT and MetOffice integrations can be enabled/disabled in config
-
-## Application structure
-
-`/main.py` main application 
-
-`/src/sensor.py` BME280 integration code
-
-`/src/metoffice.py` MetOffice API integration code
-
-`/src/mongo.py` Mongo database integration code
-
-`/src/mqtt_handler` MQTT handler code (can be used for integration with Home Assistant)
-
-***
-
-## Installation
-
-Ensure that I2C interface is enabled on the Raspberry Pi. Check `raspi-config` (under `Interface Options` > `I2C` = enabled):
-```bash
-sudo raspi-config
-```
-- Update OS packages
-```bash
-sudo apt-get update
-```
-
-- Install git
-```bash
-sudo apt-get install git
-```
-
-- Clone the repository
 ```bash
 git clone https://github.com/ajyounguk/bme280-sensor-logger
-```
-
-- Install Python
-```bash
-sudo apt install python3-pip
-```
-
-- move to bme280-sensor-logger directory
-```bash
 cd bme280-sensor-logger
-```
-
-
--  Activate a Python Virtual Environment
- install venv if not available
-```bash
-sudo apt install python3-venv
-```
-
-```bash
-python3 -m venv venv
-```
-```bash
-source venv/bin/activate
-```
-
-
-- Install Dependencies
-```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate    Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
+python main.py --config config/config-fake.json
 ```
 
-***
+`config/config-fake.json` uses `"sensor": {"type": "fake"}` and turns off MQTT, MongoDB and the Met Office, so it
+just logs plausible readings every 10 seconds:
+
+```
+[INFO 2026-11-16 13:28:48] - bme280-sensor-logger starting...
+[INFO 2026-11-16 13:28:48] - Sensor: fake (I2C port 1, address 0x76)
+[INFO 2026-11-16 13:28:48] - BME280 - Temperature: 21.05 °C, Pressure: 1012.51 hPa, Humidity: 45.88 %
+```
+
+To try MQTT or MongoDB without a sensor, copy `config-example.json` as below and set `sensor.type` to `"fake"`.
+
+## Install on a Raspberry Pi
+
+1. Enable I2C: `sudo raspi-config`, then **Interface Options**, **I2C**, **Enable**.
+2. Install the tools and clone the repo:
+   ```bash
+   sudo apt update && sudo apt install -y git python3-venv i2c-tools
+   git clone https://github.com/ajyounguk/bme280-sensor-logger
+   cd bme280-sensor-logger
+   python3 -m venv .venv && source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+3. Check that the sensor is visible: `i2cdetect -y 1` should show `76` or `77`. Older 256 MB Pis use bus `0`.
+   If it doesn't show, check the wiring. [This guide](https://www.hackster.io/Shilleh/beginner-tutorial-how-to-connect-raspberry-pi-and-bme280-4fdbd5) helps.
+4. Create your config (see below), then do a single test run:
+   ```bash
+   python main.py --once
+   ```
 
 ## Configuration
 
-- Copy the example config file to config.json
 ```bash
-cd config
+cp config/config-example.json config/config.json
 ```
-```bash
-cp example-config.json config.json
-```
-- Customise the configuration filewith your MongoDB, MQTT, and Met Office credentials as per below:
 
-Application:
-- `readingIntervalSeconds` - Application interval between sensor and MetOffice readings
-- `deviceName` - Name for this device, used to tag Mongo and MQTT records
+`config/config.json` is git-ignored. It's where your API key and passwords go, so keep it out of anything you share.
+The app refuses to start while any `YOUR_...` placeholders are left in, and tells you what's wrong.
 
-
-Sensor:
-- `i2c_port`: Port number (typically 1).
-- `bme280_address`: The default I2C address for the BME280 sensor (varies between 0x76 and 0x77).
-
-
-MetOffice:
-- `enabled`: Enable or disable MetOffice data integration
-- `locationID`: Numeric value for the MetOffice location where data is collected (see notes below).
-- `APIKey`:  Your MetOffice API key (can be obtained [here](https://www.metoffice.gov.uk/services/data/datapoint/api)).
-
-> The `locationID` denotes your weather data location. You may find success using 4-digit location IDs, often representing larger regions or Counties in the UK. See [this list](https://gist.github.com/ajyounguk/e05db10df74e0b86c7e6a0a39a95f1f4) for more.
-
-
-Mongo:
-- `enabled`: Enable or disable MongoDB data integration
-- `uri`: Connection string for your Mongo database
-- `dbName`: Mongo database name
-- `collection`: collection name for storing readings.
-- `sensorSource`: source name for the bme280 documents stored in mongo
-- `metofficeSource`: source name for the MetOffice documents stored in mongo
-
-
-MQTT:
-- `enabled`: Enable or disable MQTT data integration
-- `broker`: IP address or FQDN for the MQTT Broker (For Home Assistant this is the address of your Home Assistant host)
-- `port`: 1833 is the default port
-- `mqttUsername`: MQTT username (for Home Assistant, use a dedicated user created for MQTT)
-- `mqttPassword`: The corresponding MQTT password.
-- `sensorTopic`: MQTT topic name to receive the bme280 sensor data 
-- `metofficeTopic`: MQTT topic name to receive the MetOffice data
-
-Example configuration.json:
 ```json
 {
-  "app": {
-      "readingIntervalSeconds": 600,
-      "deviceName": "lounge_rpi"
-  },
-  "sensor": {
-      "i2c_port": 1,
-      "bme280_address": "0x76"
-  },
-  "metoffice": {
-      "enabled": true,
-      "locationID": "1234",  
-      "APIKey": "YOUR_METOFFICE_API_KEY"           
-  },
-  "mongo": {
-      "enabled" : true,
-      "uri": "mongodb+srv://MONGO_USERNAME:MONGO_PASSWORD@cluster0.example.mongodb.net/DATABASE?retryWrites=true&w=majority",
-      "dbName": "YOUR_DB_NAME",
-      "collection": "house_temperature_readings",
-      "sensorSource": "lounge",
-      "metofficeSource": "outside"
-  },
-  "mqtt": {
-      "enabled": true,
-      "broker": "homeassistant.local",
-      "port": 1883,
-      "mqttUsername": "YOUR_MQTT_USERNAME",
-      "mqttPassword": "YOUR_MQTT_PASSWORD",
-      "sensorTopic": "homeassistant/bme280_lounge",
-      "metofficeTopic": "homeassistant/metoffice"
-  }
+  "app":       { "readingIntervalSeconds": 600, "deviceName": "lounge_pi", "logLevel": "INFO" },
+  "sensor":    { "type": "bme280", "i2c_port": 1, "bme280_address": "0x76" },
+  "metoffice": { "enabled": true, "APIKey": "YOUR_DATAHUB_LAND_OBSERVATIONS_API_KEY",
+                 "latitude": 51.5, "longitude": -0.12, "pollIntervalSeconds": 3600 },
+  "mongo":     { "enabled": true, "uri": "mongodb+srv://MONGO_USERNAME:MONGO_PASSWORD@cluster0.example.mongodb.net/?retryWrites=true&w=majority",
+                 "dbName": "YOUR_DB_NAME", "collection": "house_temperature_readings",
+                 "sensorSource": "lounge", "metofficeSource": "outside" },
+  "mqtt":      { "enabled": true, "broker": "homeassistant.local", "port": 1883,
+                 "mqttUsername": "YOUR_MQTT_USERNAME", "mqttPassword": "YOUR_MQTT_PASSWORD",
+                 "sensorTopic": "homeassistant/bme280_lounge", "metofficeTopic": "homeassistant/metoffice" }
 }
 ```
 
+| Key | Meaning |
+| --- | --- |
+| `app.readingIntervalSeconds` | Seconds between sensor readings (5 to 86400) |
+| `app.deviceName` | Tags MQTT messages and MongoDB documents |
+| `app.logLevel` | `DEBUG`, `INFO` (default), `WARNING` or `ERROR` |
+| `sensor.type` | `bme280` (default), or `fake` for no hardware |
+| `sensor.i2c_port` | I2C bus, usually `1` |
+| `sensor.bme280_address` | `"0x76"` or `"0x77"` |
+| `metoffice.enabled` | Fetch outdoor observations |
+| `metoffice.APIKey` | Your DataHub **Land Observations** key (see below) |
+| `metoffice.latitude` / `longitude` | Your location. The nearest station is looked up once at start-up |
+| `metoffice.geohash` | Optional: a station geohash, used instead of lat/lon |
+| `metoffice.pollIntervalSeconds` | How often to call the API. Default 3600, minimum 300 |
+| `mongo.enabled`, `uri`, `dbName`, `collection` | MongoDB connection and target |
+| `mongo.sensorSource` / `metofficeSource` | `source` label on sensor and Met Office readings. Also used in MQTT messages |
+| `mqtt.enabled`, `broker`, `port` | MQTT broker (default port 1883) |
+| `mqtt.mqttUsername` / `mqttPassword` | Broker credentials. Leave both empty for an anonymous broker |
+| `mqtt.sensorTopic` / `metofficeTopic` | Topics for each kind of reading |
 
-***
-## Run the Application:
+### Met Office DataHub key
 
-```bash
-python main.py
-```
+The Met Office retired DataPoint in 2025. Outdoor readings now come from Weather DataHub's **Land Observations**
+API: hourly measurements from about 150 UK stations.
 
-## Sample Output
-```
-[INFO 2024-10-19 16:29:47] - Connected to MQTT broker at homeassistant.local:1883
-[INFO 2024-10-19 16:29:47] - I2C Port: 1, BME280 Address: 118
-[INFO 2024-10-19 16:29:47] - Reading Interval: 30 seconds
-[INFO 2024-10-19 16:29:47] - MongoDB Enabled: True
-[INFO 2024-10-19 16:29:47] - Met Office Enabled: True
-[INFO 2024-10-19 16:29:47] - MQTT Enabled: True
-[INFO 2024-10-19 16:29:47] - BME280 - Temperature: 23.44 °C, Pressure: 1001.85 hPa, Humidity: 47.63 %
-[INFO 2024-10-19 16:29:48] - MetOffice - Temperature: 15.7 °C, Humidity: 58.3 %, Pressure: 1011.0 hPa, Wind: 6.0 m/s
-[INFO 2024-10-19 16:30:19] - BME280 - Temperature: 23.44 °C, Pressure: 1001.87 hPa, Humidity: 47.45 %
-[INFO 2024-10-19 16:30:20] - MetOffice - Temperature: 15.7 °C, Humidity: 58.3 %, Pressure: 1011.0 hPa, Wind: 6.0 m/s
-```
+1. Register at [datahub.metoffice.gov.uk](https://datahub.metoffice.gov.uk/).
+2. Subscribe to **Land Observations** on the **free plan** (360 calls/day). It's a separate subscription from
+   Site Specific forecasts, and its key is different.
+3. Put the key in `metoffice.APIKey` in `config/config.json`.
 
-***
-# Additional Information
+Observations update hourly, so the default `pollIntervalSeconds` of 3600 is plenty. The app also keeps its own
+daily call budget. If the API ever returns "quota exceeded", it pauses Met Office calls until midnight UTC, when
+the quota resets. The sensor keeps running either way.
 
-#### MongoDB
+> **Upgrading from v1:** `metoffice.locationID` was a DataPoint ID. Replace it with `latitude` and `longitude`, and
+> use a DataHub key. The app tells you if an old config is still in place. Met Office wind is now in m/s;
+> DataPoint reported mph.
 
-MongoDB can be hosted anywhere. The app works well with a free-tier Mongo Atlas cloud database. See [MongoDB Atlas](https://cloud.mongodb.com).
-
-- The `sensorSource` configuration is used to populate the `source` field for sensor reading data in Mongo, allowing multiple devices to store readings in the same collection.
-- The `metofficeSource` configuration is used to populate the `source` field for MetOffice data documents. 
-- The MongoDB document structure looks like this:
-```json
-{
-  "source": "lounge",
-  "temperature": 22.5,
-  "humidity": 55.2,
-  "pressure": 1012.8,
-  "wind": 5.6,  // Only for Met Office data documents, Null for BME280 readings
-  "timestamp": "2024-10-19T15:11:21.031+00:00",
-}
-```
->You can visualize data from different devices using MongoDB Charts. See [MongoDB Charts](https://www.mongodb.com/products/charts).
-
-
----
-#### MQTT 
-
-For debugging purposes in Home Assitant you can use the inbuilt MQTT listener to monitor for messages from the clients by setting it to the relevant MQTT topic name:
-
-> In Home Assistant go to Settings | Devices and Services | MQTT | Configure
-
-![MQTT](/screenshots/MQTT.png?raw=true)
-
-
----
-#### MetOffice
-
-- MetOffice readings typically only updated once per hour.
-- In oder to avoid redundant MetOffice readings, the code checks if a MetOffice document already exists  in the Mongo database, if so it will skip creating another.
-- THis also ensures that if you are running multiple sensors, only a single MetOffice record is created in each hourly interval.
-
----
-#### BME280 Sensor
-
-
-
-- The sensor typically operates on an I2C bus. To ensure proper communication, verify the bus number and address configuration. You can use `i2cdetect` to verify if your sensor is detected correctly.
-
-To detect the port number for the BME280 sensor, use this command (note: the bus port may vary depending on the Pi model):
+## Run it
 
 ```bash
-# install i2cdetect
-sudo apt-get update
-sudo apt-get install i2c-tools
+python main.py                      # run forever with config/config.json
+python main.py --once               # one reading, then exit
+python main.py --config other.json  # another config file
 ```
 
+### Keep it running with pm2
+
+[pm2](https://pm2.keymetrics.io/) keeps the app running and starts it on boot. It handles Python apps fine.
+
 ```bash
-i2cdetect -y 1 # for newwer models
-i2cdetect -y 0  # for older 256MB Raspberry Pi
-```
-- In case of errors, double-check the wiring and bus settings. [There is a guide here](https://www.hackster.io/Shilleh/beginner-tutorial-how-to-connect-raspberry-pi-and-bme280-4fdbd5)
-
----
-#### pm2
-
-pm2 is a process manager for keeping applications running in the background (and autostart on boot).
-although it is mainly a NodeJS process manager, it works great with Python applications too. If you want to install it try:
-
-- nodejs installation
-```bash
-sudo apt update
-```
-```bash
-sudo apt install -y nodejs npm
-```
-
-- verify nodejs and npm installation
-```bash
-node -v
-```
-```bash
-npm -v 
-```
-
-- install pm2 using npm
-```bash
-sudo npm install -g pm2
-```
-
-- verify pm2 nstallation
-```bash
-pm2 -v
-```
-
-- set pm2 to start on boot
-```bash
-pm2 startup
-```
-
-- it will generate a command specific to your system, which might look like this
-> sudo env PATH=$PATH:/usr/bin pm2 startup systemd -u pi --hp /home/pi
-- run the generated command to enable pm2 to start on boot
-
-
-- change to application directory 
-
-e.g.
-```bash
-cd bme280-sensor-logger
-```
-- start the the application (main.py) with pm2
-```bash
-pm2 start main.py
-```
-
-- save it into the pm2 process list
-```bash
+sudo apt install -y nodejs npm && sudo npm install -g pm2
+pm2 startup          # then run the command it prints
+pm2 start main.py --name bme280 --interpreter .venv/bin/python
 pm2 save
+pm2 logs bme280      # view logs; also: pm2 status / restart bme280 / stop bme280
 ```
 
-- other pm2 commands (see `pm2 --help`) :
+## Home Assistant
 
-```bash
-pm2 status # will display process number for the application if runnign
-pm2 logs # view logs
-pm2 start 0 # or your process number from status
-pm2 stop 0 # or your process number from status
-pm2 restart 0  # or your process number from status
-```
-
----
-#### Home Assistant Integration
-
-For those using Home Assistant, you can use the MQTT integration to display temperature, pressure, and humidity data from your sensors. 
-
-Home assistant integration is beyond the scope of this README, there are many better guides on the web for this. 
-I recommend starting with the MQTT mosquito add-on for Home Assistant. Then configure the MQTT device integration. A separate credential (Home Assistant person) is recommended to provide access controls for the MQTT integration. Use the same credentials in the MQTT configuration for this application (`mqttUsername` and `mqttPassword`).
-
-Finally you will need to configure your Home Assistant `configuration.yaml` file to listen to the relevant MQTT topics and define the devices/entities for the sensor readings in line with the example below:
-
+Run an MQTT broker (the Mosquitto add-on is the easy route) with a dedicated user for this app. Then add sensors
+to `configuration.yaml`:
 
 ```yaml
 mqtt:
@@ -353,45 +154,89 @@ mqtt:
     - name: "BME280 Temperature"
       state_topic: "homeassistant/bme280_lounge"
       unit_of_measurement: "°C"
+      device_class: temperature
       value_template: "{{ value_json.temperature }}"
-  
     - name: "BME280 Pressure"
       state_topic: "homeassistant/bme280_lounge"
       unit_of_measurement: "hPa"
+      device_class: pressure
       value_template: "{{ value_json.pressure }}"
-  
     - name: "BME280 Humidity"
       state_topic: "homeassistant/bme280_lounge"
       unit_of_measurement: "%"
+      device_class: humidity
       value_template: "{{ value_json.humidity }}"
-  
-    - name: "BME280 Wind Speed"
-      state_topic: "homeassistant/bme280_lounge"
-      unit_of_measurement: "m/s"
-      value_template: "{{ value_json.wind }}"
-  
     - name: "Met Office Temperature"
       state_topic: "homeassistant/metoffice"
       unit_of_measurement: "°C"
+      device_class: temperature
       value_template: "{{ value_json.temperature }}"
-  
     - name: "Met Office Pressure"
       state_topic: "homeassistant/metoffice"
       unit_of_measurement: "hPa"
+      device_class: pressure
       value_template: "{{ value_json.pressure }}"
-  
     - name: "Met Office Humidity"
       state_topic: "homeassistant/metoffice"
       unit_of_measurement: "%"
+      device_class: humidity
       value_template: "{{ value_json.humidity }}"
-  
     - name: "Met Office Wind Speed"
       state_topic: "homeassistant/metoffice"
       unit_of_measurement: "m/s"
+      device_class: wind_speed
       value_template: "{{ value_json.wind }}"
 ```
-Home Assistant Screenshots
 
-![HA](/screenshots/HA.png?raw=true)
+To watch the raw messages, go to **Settings**, **Devices & services**, **MQTT**, **Configure**, and listen on your
+topic.
 
-![HA2](/screenshots/HA2.png?raw=true)
+![MQTT listener](docs/screenshots/MQTT.png?raw=true)
+![Home Assistant history](docs/screenshots/HA2.png?raw=true)
+
+Message payloads:
+
+```json
+// sensorTopic
+{"source": "lounge", "temperature": 21.05, "pressure": 1012.51, "humidity": 45.88, "wind": null}
+// metofficeTopic (re-sent every cycle with the latest observation)
+{"source": "outside", "temperature": 9.13, "humidity": 85.0, "pressure": 1025.0, "wind": 1.4,
+ "observedAt": "2026-11-16T10:00:00Z", "deviceName": "lounge_pi"}
+```
+
+## MongoDB
+
+Each reading becomes one document:
+
+```json
+{ "source": "lounge", "timestamp": "2026-11-16T10:12:00Z", "temperature": 21.05, "pressure": 1012.51,
+  "humidity": 45.88, "wind": null, "deviceName": "lounge_pi" }
+```
+
+Met Office documents also carry `observedAt`, the station's observation time. Each observation is stored once,
+even when several devices share a collection with the same `metofficeSource`. Visualise the data with
+[MongoDB Charts](https://www.mongodb.com/products/charts).
+
+## Development
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest              # all tests; the sensor, MQTT, MongoDB and Met Office are faked
+ruff check . && ruff format .
+```
+
+- No network, broker, database or hardware is needed. The Met Office tests use recorded-style fixtures in
+  `tests/fixtures/`.
+- `tests/test_hardware.py` reads a real BME280. It's skipped unless it runs on Linux with `/dev/i2c-1` present.
+  On the Pi: `pytest -m hardware -v`. Set `BME280_I2C_PORT` / `BME280_ADDRESS` if yours differ.
+- CI runs ruff and pytest on Ubuntu and Windows (Python 3.11 and 3.13). Dependabot keeps the pinned versions fresh.
+- Code layout and design decisions: [docs/design.md](docs/design.md). API notes:
+  [docs/metoffice-datahub.md](docs/metoffice-datahub.md).
+
+## To do
+
+- Publish in Home Assistant MQTT auto-discovery format, so the YAML above isn't needed.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).

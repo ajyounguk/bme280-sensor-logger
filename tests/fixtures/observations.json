@@ -1,0 +1,31 @@
+[
+  {
+    "datetime": "2026-11-16T09:00:00Z",
+    "temperature": 8.4,
+    "humidity": 88,
+    "mslp": 1024,
+    "wind_speed": 1.1,
+    "wind_direction": "E",
+    "wind_gust": 2.0,
+    "visibility": 11000,
+    "weather_code": 7,
+    "pressure_tendency": "R"
+  },
+  {
+    "datetime": "2026-11-16T11:00:00Z",
+    "humidity": 80,
+    "mslp": 1026
+  },
+  {
+    "datetime": "2026-11-16T10:00:00Z",
+    "temperature": 9.13,
+    "humidity": 85,
+    "mslp": 1025,
+    "wind_speed": 1.4,
+    "wind_direction": "ENE",
+    "wind_gust": 2.8,
+    "visibility": 12550,
+    "weather_code": 8,
+    "pressure_tendency": "R"
+  }
+]

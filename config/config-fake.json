@@ -1,0 +1,19 @@
+{
+  "app": {
+    "readingIntervalSeconds": 10,
+    "deviceName": "dev_fake",
+    "logLevel": "INFO"
+  },
+  "sensor": {
+    "type": "fake"
+  },
+  "metoffice": {
+    "enabled": false
+  },
+  "mongo": {
+    "enabled": false
+  },
+  "mqtt": {
+    "enabled": false
+  }
+}
