@@ -6,7 +6,7 @@
 | Call | Returns |
 | --- | --- |
 | `GET /nearest?lat=51.5&lon=-0.12` | A JSON array of the nearest station(s): `geohash`, `area`, `region`, `country`, `olson_time_zone` |
-| `GET /{geohash}` | A JSON array of hourly observations for the last 48 h |
+| `GET /{geohash}` | A JSON array of 48 hourly observations (last 48 h), oldest first |
 
 The fields the app uses from each observation:
 
@@ -15,8 +15,8 @@ The fields the app uses from each observation:
 | `datetime` | `observedAt` | ISO-8601 UTC |
 | `temperature` | `temperature` | °C |
 | `humidity` | `humidity` | % |
-| `mslp` | `pressure` | hPa (values above 2000 are treated as Pa and divided by 100) |
-| `wind_speed` | `wind` | m/s |
+| `mslp` | `pressure` | hPa (a safeguard treats values above 2000 as Pa) |
+| `wind_speed` | `wind` | m/s, 10 m height, averaged over the previous 10 minutes |
 
 Other fields (`wind_direction` as a 16-point compass string, `wind_gust`, `visibility`, `weather_code`,
 `pressure_tendency`) are ignored for now. Fields can be missing for a given site and hour. The parser picks the
@@ -37,6 +37,12 @@ newest observation that has a temperature.
 
 ## Provenance
 
-The official API reference page needs a login. The endpoint paths and field names above come from the DataHub
-overview and FAQ pages plus two open-source clients. Units for `mslp` and `wind_speed` still need checking against
-a live response (see [backlog.md](backlog.md)).
+Verified against the live API on 16 Nov 2026:
+- The response shapes, field names and order match this page.
+- `mslp` read 995 to 1012 over 48 h, which confirms hPa.
+- The DataHub glossary gives `wind_speed` in m/s. It renders in a browser only:
+  <https://datahub.metoffice.gov.uk/docs/glossary?models=mo-land-observations>
+
+Other things seen in live data:
+- `visibility` can arrive as a float.
+- `pressure_tendency` is a letter, for example `F` or `R`.
