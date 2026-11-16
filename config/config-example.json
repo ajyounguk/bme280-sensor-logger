@@ -1,33 +1,36 @@
 {
   "app": {
-      "readingIntervalSeconds": 600,
-      "deviceName": "lounge_rpi"
+    "readingIntervalSeconds": 600,
+    "deviceName": "lounge_pi",
+    "logLevel": "INFO"
   },
   "sensor": {
-      "i2c_port": 1,
-      "bme280_address": "0x76"
+    "type": "bme280",
+    "i2c_port": 1,
+    "bme280_address": "0x76"
   },
   "metoffice": {
-      "enabled": true,
-      "locationID": "1234",  
-      "APIKey": "YOUR_METOFFICE_API_KEY"           
+    "enabled": true,
+    "APIKey": "YOUR_DATAHUB_LAND_OBSERVATIONS_API_KEY",
+    "latitude": 51.5,
+    "longitude": -0.12,
+    "pollIntervalSeconds": 3600
   },
   "mongo": {
-      "enabled" : true,
-      "uri": "mongodb+srv://MONGO_USERNAME:MONGO_PASSWORD@cluster0.example.mongodb.net/DATABASE?retryWrites=true&w=majority",
-      "dbName": "YOUR_DB_NAME",
-      "collection": "house_temperature_readings",
-      "sensorSource": "lounge",
-      "metofficeSource": "outside"
+    "enabled": true,
+    "uri": "mongodb+srv://MONGO_USERNAME:MONGO_PASSWORD@cluster0.example.mongodb.net/?retryWrites=true&w=majority",
+    "dbName": "YOUR_DB_NAME",
+    "collection": "house_temperature_readings",
+    "sensorSource": "lounge",
+    "metofficeSource": "outside"
   },
   "mqtt": {
-      "enabled": true,
-      "broker": "homeassistant.local",
-      "port": 1883,
-      "mqttUsername": "YOUR_MQTT_USERNAME",
-      "mqttPassword": "YOUR_MQTT_PASSWORD",
-      "sensorTopic": "homeassistant/bme280_lounge",
-      "metofficeTopic": "homeassistant/metoffice"
+    "enabled": true,
+    "broker": "homeassistant.local",
+    "port": 1883,
+    "mqttUsername": "YOUR_MQTT_USERNAME",
+    "mqttPassword": "YOUR_MQTT_PASSWORD",
+    "sensorTopic": "homeassistant/bme280_lounge",
+    "metofficeTopic": "homeassistant/metoffice"
   }
 }
-  
