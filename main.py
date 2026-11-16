@@ -1,179 +1,171 @@
-# bme280-temperature-sensor (python version)
-#
-# This Python-based application monitors environmental data using a BME280 sensor 
-# and the Met Office API. 
-# Temperature, pressure and humdity readings can be persisted in a Mongo database,
-# or sent to a MQTT for integration with Home Assistant .
-#
-# Andrew Young.
-# v1.0 - 20/10/2024 - baseline working code set
-#
+"""bme280-sensor-logger
 
+Reads temperature, pressure and humidity from a BME280 (or a fake sensor for development), optionally fetches
+outdoor observations from the Met Office Weather DataHub, and publishes both to MQTT (e.g. Home Assistant) and/or
+MongoDB.
 
-# Code logic at a high level:
-# 1. load configuration parameters from /config/config.json
-# 2. main loop
-#   2.2 get sensor readings
-#   2.3 post sensor data to MQTT (if enabled in config)
-#   2.3 post sensor data to Mongo (if enabled in config)
-#   2.4 get MetOffice readings (if enabled in config)
-#   2.3 post MetOffice data to MQTT (if enabled in config)
-#   2.3 post MetOffice data to Mongo (if enabled in config)
-# 3. sleep for configurable amount of seconds & loop to 2.
+Usage:
+    python main.py                        # run forever, config from config/config.json
+    python main.py --config path.json     # another config file
+    python main.py --once                 # one cycle, then exit (handy for checking a setup)
+"""
 
+from __future__ import annotations
 
-# imports
-import json
-import time
-from datetime import datetime
-from src.mongo import insert_mongo_data, hourDataFound # Removed document_exists as it's now handled in insert_data
-from src.metoffice import get_met_office_data
+import argparse
+import logging
+import signal
+import sys
+import threading
+from dataclasses import dataclass, field
+
+from src.config import Config, ConfigError, load_config
+from src.metoffice import LandObservationsClient, MetOfficePoller
+from src.mongo import MongoStore
 from src.mqtt_handler import MQTTHandler
-from src.sensor import read_bme280_data
+from src.sensor import Sensor, build_sensor
 
-# Load configuration from JSON file
-def load_config():
-    with open('config/config.json') as config_file:
-        return json.load(config_file)
+log = logging.getLogger("bme280-logger")
 
-# Main logic to read from sensors and process data
-def main_loop():
-    while True:
+DEFAULT_CONFIG = "config/config.json"
 
-        # added to main loop due to diconnects and timeouts
-        mqtt_handler = None
-        if MQTT_ENABLED:
-            mqtt_handler = MQTTHandler(MQTT_BROKER, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD)
-            mqtt_handler.connect()
 
-        # read sensor data
-        bme280_data = read_bme280_data(I2C_PORT, BME280_ADDRESS, SENSOR_SOURCE)
+def setup_logging(level: str = "INFO") -> None:
+    # Windows consoles default to a legacy code page; keep "°C" readable.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    logging.basicConfig(
+        level=level,
+        format="[%(levelname)s %(asctime)s] - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        stream=sys.stdout,
+        force=True,
+    )
+    # Library chatter (urllib3 connection pool, pymongo topology) stays out unless debugging.
+    for noisy in ("urllib3", "pymongo"):
+        logging.getLogger(noisy).setLevel(max(logging.WARNING, logging.getLogger().level))
 
-        # Print BME280 data
-        print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - BME280 - Temperature: {bme280_data['temperature']} °C, "
-              f"Pressure: {bme280_data['pressure']} hPa, Humidity: {bme280_data['humidity']} %")
 
-        
-        # Publish BME280 data to MQTT if enabled
-        if MQTT_ENABLED:
-            mqtt_handler.publish(MQTT_TOPIC_BME280, bme280_data)
+@dataclass
+class App:
+    cfg: Config
+    sensor: Sensor
+    poller: MetOfficePoller | None = None
+    mongo: MongoStore | None = None
+    mqtt_factory: type = MQTTHandler
+    stop: threading.Event = field(default_factory=threading.Event)
 
-        
-        # Insert BME280 data into MongoDB
-        if MONGO_ENABLED:
-            insert_mongo_data(MONGO_URI, DATABASE_NAME, COLLECTION_NAME, bme280_data, DEVICE_NAME)
-        
-     
-        # Fetch and insert Met Office data if enabled
-        if METOFFICE_ENABLED:
-            met_office_data_doc = get_met_office_data(LOCATION_ID, API_KEY, METOFFICE_SOURCE)
-            if met_office_data_doc:
+    @classmethod
+    def from_config(cls, cfg: Config) -> App:
+        poller = None
+        if cfg.metoffice.enabled:
+            client = LandObservationsClient(
+                cfg.metoffice.api_key, cfg.metoffice.latitude, cfg.metoffice.longitude, cfg.metoffice.geohash
+            )
+            poller = MetOfficePoller(client, cfg.metoffice.source, cfg.metoffice.poll_interval)
+        mongo = MongoStore(cfg.mongo) if cfg.mongo.enabled else None
+        return cls(cfg=cfg, sensor=build_sensor(cfg.sensor), poller=poller, mongo=mongo)
 
-                met_office_data_doc["deviceName"] = DEVICE_NAME
-                
-                # Print Met Office data if it was inserted
-                print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - MetOffice - Temperature: {met_office_data_doc['temperature']} °C, "
-                      f"Humidity: {met_office_data_doc['humidity']} %, Pressure: {met_office_data_doc['pressure']} hPa, "
-                      f"Wind: {met_office_data_doc['wind']} m/s")
+    def run_cycle(self) -> None:
+        cfg = self.cfg
+        mqtt = None
+        if cfg.mqtt.enabled:
+            mqtt = self.mqtt_factory(cfg.mqtt, client_id=f"bme280-logger-{cfg.app.device_name}")
+            mqtt.connect()
+        try:
+            try:
+                reading = self.sensor.read()
+            except Exception as e:  # noqa: BLE001 - I2C errors are OSError, but keep the loop alive whatever happens
+                log.error("Sensor read failed: %s", e)
+                reading = None
 
-                # Publish Met Office data to MQTT if enabled
-                if MQTT_ENABLED:
-                    mqtt_handler.publish(MQTT_TOPIC_METOFFICE, met_office_data_doc)
-                
-                # Insert Met Office data into MongoDB, checking for existing records
-                if MONGO_ENABLED:
-                    # MetOffice data is only updated ever hour
-                    # therefore to avoid redundant documents being created in Mongo we check to see 
-                    # if there is already a document created in the database in the current hour slot first
-                    if (hourDataFound(MONGO_URI, DATABASE_NAME, COLLECTION_NAME, METOFFICE_SOURCE ) != True):
-                        print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Posting MetOffice readings for this hour")
-                        insert_mongo_data(MONGO_URI, DATABASE_NAME, COLLECTION_NAME, met_office_data_doc, DEVICE_NAME)
-            else:
-                print("[ERROR {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Failed to fetch Met Office data.")
+            if reading:
+                log.info(
+                    "BME280 - Temperature: %s °C, Pressure: %s hPa, Humidity: %s %%",
+                    reading["temperature"],
+                    reading["pressure"],
+                    reading["humidity"],
+                )
+                if mqtt:
+                    mqtt.publish(cfg.mqtt.sensor_topic, reading)
+                if self.mongo:
+                    self.mongo.insert(reading, cfg.app.device_name)
 
-        if MQTT_ENABLED:
-            if mqtt_handler:
-                mqtt_handler.disconnect()
+            if self.poller:
+                # The API is called at most once per poll interval; new observations go to Mongo once,
+                # while MQTT gets the latest one every cycle so Home Assistant recovers quickly after a restart.
+                new = self.poller.poll()
+                if new:
+                    log.info(
+                        "MetOffice - Temperature: %s °C, Humidity: %s %%, Pressure: %s hPa, Wind: %s m/s (observed %s)",
+                        new["temperature"],
+                        new["humidity"],
+                        new["pressure"],
+                        new["wind"],
+                        new["observedAt"],
+                    )
+                    if self.mongo and not self.mongo.observation_exists(new["source"], new["observedAt"]):
+                        self.mongo.insert(new, cfg.app.device_name)
+                latest = self.poller.last_reading
+                if mqtt and latest:
+                    mqtt.publish(cfg.mqtt.metoffice_topic, {**latest, "deviceName": cfg.app.device_name})
+        finally:
+            if mqtt:
+                mqtt.disconnect()
 
-        # Sleep for the specified interval before the next reading
-        time.sleep(READING_INTERVAL)
+    def run(self, once: bool = False) -> None:
+        while not self.stop.is_set():
+            self.run_cycle()
+            if once:
+                break
+            self.stop.wait(self.cfg.app.reading_interval)
 
-# Main execution
-if __name__ == "__main__":
-    config = load_config()
+    def close(self) -> None:
+        if self.mongo:
+            self.mongo.close()
 
-    # App configuration values
-    READING_INTERVAL = config['app']['readingIntervalSeconds']
-    DEVICE_NAME = config['app']['deviceName']
 
-    # Sensor configuration valus
-    I2C_PORT = config['sensor']['i2c_port']
-    BME280_ADDRESS = int(config['sensor']['bme280_address'], 16)
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="BME280 + Met Office logger for MQTT and MongoDB")
+    p.add_argument("--config", default=DEFAULT_CONFIG, help=f"config file (default: {DEFAULT_CONFIG})")
+    p.add_argument("--once", action="store_true", help="run one cycle and exit")
+    return p.parse_args(argv)
 
-    # MongoDB settings from the config file
-    MONGO_ENABLED = config['mongo']['enabled']
-    MONGO_URI = config['mongo']['uri']
-    DATABASE_NAME = config['mongo']['dbName']
-    COLLECTION_NAME = config['mongo']['collection']
-    SENSOR_SOURCE = config['mongo']['sensorSource']  # Get sensor source from config
-    METOFFICE_SOURCE = config['mongo']['metofficeSource']  # Get Met Office source from config
 
-    # Met Office settings from the config file
-    METOFFICE_ENABLED = config['metoffice']['enabled']
-    LOCATION_ID = config['metoffice']['locationID']
-    API_KEY = config['metoffice']['APIKey']
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    setup_logging()
+    try:
+        cfg = load_config(args.config)
+    except ConfigError as e:
+        log.error("Config error: %s", e)
+        return 2
+    setup_logging(cfg.app.log_level)
 
-    # MQTT broker settings from the config file
-    MQTT_ENABLED = config['mqtt']['enabled']  # Check if MQTT is enabled
-    MQTT_BROKER = config['mqtt']['broker']
-    MQTT_PORT = config['mqtt']['port']
-    MQTT_USERNAME = config['mqtt']['mqttUsername']
-    MQTT_PASSWORD = config['mqtt']['mqttPassword']
-    MQTT_TOPIC_BME280 = config['mqtt']['sensorTopic']
-    MQTT_TOPIC_METOFFICE = config['mqtt']['metofficeTopic']
-
-    
-
-    print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - bme280-temperature-logger starting...")
-    
-    # General App Configuration
-    print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Device Name: {DEVICE_NAME}")
-    print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Reading Interval: {READING_INTERVAL} seconds")
-    
-    # Sensor Configuration
-    print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - I2C Port: {I2C_PORT}")
-    print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - BME280 Address: {BME280_ADDRESS}")
-
-    # MongoDB Configuration
-    print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - MongoDB Enabled: {MONGO_ENABLED}")
-    if MONGO_ENABLED:
-        print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - MongoDB URI: {MONGO_URI}")
-        print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - MongoDB Database: {DATABASE_NAME}")
-        print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - MongoDB Collection: {COLLECTION_NAME}")
-        print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Sensor Source: {SENSOR_SOURCE}")
-        print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - MetOffice Source: {METOFFICE_SOURCE}")
-
-    # Met Office Configuration
-    print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Met Office Enabled: {METOFFICE_ENABLED}")
-    if METOFFICE_ENABLED:
-        print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Met Office Location ID: {LOCATION_ID}")
-        print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Met Office API Key: {API_KEY}")
-
-    # MQTT Configuration
-    print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - MQTT Enabled: {MQTT_ENABLED}")
-    if MQTT_ENABLED:
-        print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - MQTT Broker: {MQTT_BROKER}")
-        print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - MQTT Port: {MQTT_PORT}")
-        print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - MQTT Username: {MQTT_USERNAME}")
-        print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - MQTT Password: {MQTT_PASSWORD}")
-        print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - MQTT Sensor Topic: {MQTT_TOPIC_BME280}")
-        print(f"[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - MQTT Met Office Topic: {MQTT_TOPIC_METOFFICE}")
+    log.info("bme280-sensor-logger starting...")
+    for line in cfg.summary():
+        log.info("%s", line)
 
     try:
-        main_loop()
+        app = App.from_config(cfg)
+    except ImportError as e:
+        log.error('Sensor libraries not available (%s). Install requirements, or set sensor.type to "fake".', e)
+        return 2
+
+    def _stop(signum, _frame):
+        log.info("Received %s, stopping...", signal.Signals(signum).name)
+        app.stop.set()
+
+    signal.signal(signal.SIGTERM, _stop)  # pm2 / systemd stop
+    try:
+        app.run(once=args.once)
     except KeyboardInterrupt:
-        print("[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Program stopped by user.")
-    except Exception as e:
-        print(f"[ERROR {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - An error occurred: {e}")
+        log.info("Program stopped by user.")
     finally:
-        print("[INFO {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] - Stopping....")
+        app.close()
+        log.info("Stopped.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

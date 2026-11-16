@@ -1,10 +1,12 @@
-# config files - only include example file
+# config files - only the examples are tracked (config.json holds API keys and passwords)
 /config/*
 !/config/config-example.json
+!/config/config-fake.json
 
-/src/metoffice-refact.py
-
-requirements.old
+# local-only notes: Claude rules with homelab specifics, deployment notes
+CLAUDE.local.md
+docs/local/
+.claude/settings.local.json
 
 
 # Byte-compiled / optimized / DLL files

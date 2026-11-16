@@ -1,52 +1,63 @@
+"""MongoDB persistence. One long-lived client per process (pymongo pools connections internally)."""
+
+from __future__ import annotations
+
+import logging
+from datetime import UTC, datetime
+
 from pymongo import MongoClient
-from datetime import datetime
-from collections import OrderedDict
+from pymongo.errors import PyMongoError
+
+from src.config import MongoConfig
+
+log = logging.getLogger(__name__)
 
 
-def hourDataFound(mongo_uri, db_name, collection_name, source):
-    # Create a MongoDB client
-    client = MongoClient(mongo_uri)
-    db = client[db_name]
-    collection = db[collection_name]
+class MongoStore:
+    def __init__(self, cfg: MongoConfig, client_factory=MongoClient):
+        self._cfg = cfg
+        self._client_factory = client_factory
+        self._client = None
 
-    # Get the start and end of the current hour
-    now = datetime.utcnow()
-    start_of_hour = now.replace(minute=0, second=0, microsecond=0)
-    end_of_hour = now.replace(minute=59, second=59, microsecond=999999)
+    @property
+    def collection(self):
+        if self._client is None:
+            self._client = self._client_factory(self._cfg.uri, serverSelectionTimeoutMS=10_000, tz_aware=True)
+        return self._client[self._cfg.db_name][self._cfg.collection]
 
-    try:
-        # Check if a record from the same source exists within the current hour
-        existing_record = collection.find_one({
-            "source": source, 
-            "timestamp": {"$gte": start_of_hour, "$lt": end_of_hour}
-        })
+    def insert(self, reading: dict, device_name: str) -> bool:
+        """Insert a reading. Field order matches the original documents so existing charts keep working."""
+        doc = {
+            "source": reading.get("source"),
+            "timestamp": datetime.now(UTC),
+            "temperature": reading.get("temperature"),
+            "pressure": reading.get("pressure"),
+            "humidity": reading.get("humidity"),
+            "wind": reading.get("wind"),
+            "deviceName": device_name,
+        }
+        if reading.get("observedAt"):
+            doc["observedAt"] = reading["observedAt"]
+        try:
+            self.collection.insert_one(doc)
+            return True
+        except PyMongoError as e:
+            log.error("MongoDB insert failed: %s", type(e).__name__)
+            log.debug("MongoDB insert error detail", exc_info=True)
+            return False
 
-        return existing_record is not None
-    
-    except Exception as error:
-        print(f"[ERROR {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Checking Mongo Hour Interval: {error}")
+    def observation_exists(self, source: str, observed_at: str) -> bool:
+        """True if this Met Office observation is already stored (e.g. by another device sharing the collection).
 
+        On a database error, return True: skipping one hourly observation beats writing duplicates.
+        """
+        try:
+            return self.collection.find_one({"source": source, "observedAt": observed_at}, {"_id": 1}) is not None
+        except PyMongoError as e:
+            log.error("MongoDB lookup failed: %s", type(e).__name__)
+            return True
 
-
-def insert_mongo_data(mongo_uri, db_name, collection_name, data, deviceName):
-    # Create a MongoDB client
-    client = MongoClient(mongo_uri)
-    db = client[db_name]
-    collection = db[collection_name]
-
-    # Proceed with saving the new data
-    try:
-        ordered_data = OrderedDict()
-        ordered_data["source"] = data.get("source")
-        ordered_data["timestamp"] = datetime.utcnow()
-        ordered_data["temperature"] = data.get("temperature")
-        ordered_data["pressure"] = data.get("pressure")
-        ordered_data["humidity"] = data.get("humidity")
-        ordered_data["wind"] = data.get("wind")
-        ordered_data["deviceName"] = deviceName
-
-        collection.insert_one(ordered_data)
-    except Exception as error:
-        print(f"[ERROR {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] MongoDB query/save error: {error}")
-
-    client.close()  # Close the client
+    def close(self) -> None:
+        if self._client is not None:
+            self._client.close()
+            self._client = None
